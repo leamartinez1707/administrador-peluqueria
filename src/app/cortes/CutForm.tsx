@@ -2,26 +2,47 @@
 
 import { useActionState, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createCut, type ActionResult } from "./actions";
+import { createCut, updateCut, type ActionResult } from "./actions";
 
 type Barber = { id: string; name: string };
 type Service = { id: string; name: string; price: number };
+type FixedBarber = { id: string; name: string };
+type CutInitial = {
+  barber_id: string;
+  service_id: string | null;
+  client_name: string | null;
+  amount: number;
+  payment_method: string;
+  cut_date: string;
+  notes: string | null;
+};
 
 const initialState: ActionResult = {};
 
 export function CutForm({
+  mode = "create",
+  cutId,
   barbers,
+  fixedBarber,
   services,
   todayISO,
+  initial,
 }: {
+  mode?: "create" | "edit";
+  cutId?: string;
   barbers: Barber[];
+  fixedBarber?: FixedBarber;
   services: Service[];
   todayISO: string;
+  initial?: CutInitial;
 }) {
   const router = useRouter();
+  const boundAction =
+    mode === "edit" && cutId ? updateCut.bind(null, cutId) : createCut;
+
   const [state, formAction, pending] = useActionState(
     async (prevState: ActionResult, formData: FormData) => {
-      const result = await createCut(prevState, formData);
+      const result = await boundAction(prevState, formData);
       if (!result.error) {
         router.push("/cortes");
         router.refresh();
@@ -31,7 +52,7 @@ export function CutForm({
     initialState
   );
 
-  const [serviceId, setServiceId] = useState("");
+  const [serviceId, setServiceId] = useState(initial?.service_id ?? "");
   const selectedService = useMemo(
     () => services.find((s) => s.id === serviceId),
     [services, serviceId]
@@ -39,23 +60,36 @@ export function CutForm({
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
-      <Field label="Barbero">
-        <select
-          name="barber_id"
-          required
-          className="input"
-          defaultValue=""
-        >
-          <option value="" disabled>
-            Elegi un barbero
-          </option>
-          {barbers.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
+      {fixedBarber ? (
+        <Field label="Barbero">
+          <input
+            type="hidden"
+            name="barber_id"
+            value={fixedBarber.id}
+          />
+          <p className="input bg-neutral-100 dark:bg-neutral-800">
+            {fixedBarber.name}
+          </p>
+        </Field>
+      ) : (
+        <Field label="Barbero">
+          <select
+            name="barber_id"
+            required
+            className="input"
+            defaultValue={initial?.barber_id ?? ""}
+          >
+            <option value="" disabled>
+              Elegi un barbero
             </option>
-          ))}
-        </select>
-      </Field>
+            {barbers.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+      )}
 
       <Field label="Servicio (opcional)">
         <select
@@ -81,8 +115,10 @@ export function CutForm({
           min="0"
           required
           className="input"
-          defaultValue={selectedService ? selectedService.price : undefined}
-          key={selectedService?.id ?? "sin-servicio"}
+          defaultValue={
+            initial?.amount ?? (selectedService ? selectedService.price : undefined)
+          }
+          key={selectedService?.id ?? initial?.service_id ?? "sin-servicio"}
           placeholder="0"
         />
       </Field>
@@ -92,6 +128,7 @@ export function CutForm({
           type="text"
           name="client_name"
           className="input"
+          defaultValue={initial?.client_name ?? ""}
           placeholder="Nombre del cliente"
         />
       </Field>
@@ -102,13 +139,17 @@ export function CutForm({
             type="date"
             name="cut_date"
             required
-            defaultValue={todayISO}
+            defaultValue={initial?.cut_date ?? todayISO}
             className="input"
           />
         </Field>
 
         <Field label="Pago">
-          <select name="payment_method" className="input" defaultValue="efectivo">
+          <select
+            name="payment_method"
+            className="input"
+            defaultValue={initial?.payment_method ?? "efectivo"}
+          >
             <option value="efectivo">Efectivo</option>
             <option value="tarjeta">Tarjeta</option>
             <option value="transferencia">Transferencia</option>
@@ -118,7 +159,12 @@ export function CutForm({
       </div>
 
       <Field label="Notas (opcional)">
-        <textarea name="notes" className="input" rows={2} />
+        <textarea
+          name="notes"
+          className="input"
+          rows={2}
+          defaultValue={initial?.notes ?? ""}
+        />
       </Field>
 
       {state.error ? (
@@ -132,7 +178,11 @@ export function CutForm({
         disabled={pending}
         className="inline-flex items-center justify-center rounded-lg bg-neutral-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-neutral-700 disabled:opacity-50 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
       >
-        {pending ? "Guardando..." : "Guardar corte"}
+        {pending
+          ? "Guardando..."
+          : mode === "create"
+            ? "Guardar corte"
+            : "Guardar cambios"}
       </button>
     </form>
   );

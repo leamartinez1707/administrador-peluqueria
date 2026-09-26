@@ -1,11 +1,14 @@
+import Link from "next/link";
 import { getSupabaseClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/auth";
 import { toggleServiceActive } from "./actions";
-import { NewServiceForm } from "./NewServiceForm";
 import { formatMoney } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
 export default async function ServicesPage() {
+  await requireAdmin();
+
   const supabase = getSupabaseClient();
   const { data: services, error } = await supabase
     .from("services")
@@ -15,9 +18,15 @@ export default async function ServicesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-bold">Servicios</h1>
-
-      <NewServiceForm />
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Servicios</h1>
+        <Link
+          href="/servicios/nuevo"
+          className="inline-flex items-center justify-center rounded-lg bg-neutral-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-neutral-700 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+        >
+          + Agregar servicio
+        </Link>
+      </div>
 
       {error ? (
         <p className="rounded-lg bg-red-50 p-4 text-sm text-red-700">
@@ -52,6 +61,12 @@ export default async function ServicesPage() {
                     <span className="text-sm font-medium">
                       {formatMoney(Number(s.price))}
                     </span>
+                    <Link
+                      href={`/servicios/${s.id}/editar`}
+                      className="text-xs font-medium text-neutral-500 hover:underline"
+                    >
+                      Editar
+                    </Link>
                     <form action={toggleServiceActive}>
                       <input type="hidden" name="id" value={s.id} />
                       <input

@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { getSupabaseClient } from "@/lib/supabase/server";
+import { requireSession } from "@/lib/auth";
 import { formatMoney, formatDateLabel } from "@/lib/format";
 import { deleteCut } from "./actions";
+
+export const dynamic = "force-dynamic";
 
 type SearchParams = Promise<{
   barbero?: string;
@@ -14,6 +17,7 @@ export default async function CutsPage({
 }: {
   searchParams: SearchParams;
 }) {
+  const session = await requireSession();
   const params = await searchParams;
   const supabase = getSupabaseClient();
 
@@ -25,7 +29,7 @@ export default async function CutsPage({
   let query = supabase
     .from("cuts")
     .select(
-      "id, amount, cut_date, client_name, payment_method, barbers(name), services(name)"
+      "id, barber_id, amount, cut_date, client_name, payment_method, barbers(name), services(name)"
     )
     .order("cut_date", { ascending: false })
     .order("created_at", { ascending: false })
@@ -139,16 +143,26 @@ export default async function CutsPage({
                     <p className="font-semibold">
                       {formatMoney(Number(c.amount))}
                     </p>
-                    <form action={deleteCut}>
-                      <input type="hidden" name="id" value={c.id} />
-                      <button
-                        type="submit"
-                        className="text-xs text-neutral-400 hover:text-red-600"
-                        title="Eliminar corte"
-                      >
-                        Eliminar
-                      </button>
-                    </form>
+                    {session.role === "admin" || c.barber_id === session.id ? (
+                      <>
+                        <Link
+                          href={`/cortes/${c.id}/editar`}
+                          className="text-xs text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+                        >
+                          Editar
+                        </Link>
+                        <form action={deleteCut}>
+                          <input type="hidden" name="id" value={c.id} />
+                          <button
+                            type="submit"
+                            className="text-xs text-neutral-400 hover:text-red-600"
+                            title="Eliminar corte"
+                          >
+                            Eliminar
+                          </button>
+                        </form>
+                      </>
+                    ) : null}
                   </div>
                 </div>
               ))}

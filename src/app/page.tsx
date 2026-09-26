@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getSupabaseClient } from "@/lib/supabase/server";
+import { requireSession } from "@/lib/auth";
 import { formatMoney, formatDateLabel } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -16,23 +17,33 @@ function monthStartISO(): string {
 }
 
 export default async function DashboardPage() {
+  const session = await requireSession();
+  const isAdmin = session.role === "admin";
   const supabase = getSupabaseClient();
   const today = isoDaysAgo(0);
   const weekStart = isoDaysAgo(6);
   const monthStart = monthStartISO();
 
-  const { data: monthCuts, error } = await supabase
+  let monthQuery = supabase
     .from("cuts")
     .select("id, amount, cut_date, barber_id, barbers(name)")
     .gte("cut_date", monthStart)
     .order("cut_date", { ascending: false })
     .order("created_at", { ascending: false });
 
-  const { data: recentCuts } = await supabase
+  let recentQuery = supabase
     .from("cuts")
     .select("id, amount, cut_date, client_name, barbers(name), services(name)")
     .order("created_at", { ascending: false })
     .limit(8);
+
+  if (!isAdmin) {
+    monthQuery = monthQuery.eq("barber_id", session.id);
+    recentQuery = recentQuery.eq("barber_id", session.id);
+  }
+
+  const { data: monthCuts, error } = await monthQuery;
+  const { data: recentCuts } = await recentQuery;
 
   const cuts = monthCuts ?? [];
 
@@ -67,9 +78,13 @@ export default async function DashboardPage() {
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Panel general</h1>
+          <h1 className="text-2xl font-bold">
+            {isAdmin ? "Panel general" : `Hola, ${session.name}`}
+          </h1>
           <p className="text-sm text-neutral-500">
-            Resumen de la actividad de Classic Barber Studio
+            {isAdmin
+              ? "Resumen de la actividad de Classic Barber Studio"
+              : "Resumen de tus cortes"}
           </p>
         </div>
         <Link
@@ -96,37 +111,41 @@ export default async function DashboardPage() {
             <StatCard label="Este mes" value={formatMoney(totalMes)} />
           </div>
 
-          <section className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
-            <h2 className="mb-3 text-lg font-semibold">
-              Ganancias por barbero (este mes)
-            </h2>
-            {rankingBarberos.length === 0 ? (
-              <p className="text-sm text-neutral-500">
-                Todavia no hay cortes registrados este mes.
-              </p>
-            ) : (
-              <div className="flex flex-col divide-y divide-neutral-100 dark:divide-neutral-800">
-                {rankingBarberos.map((b) => (
-                  <div
-                    key={b.nombre}
-                    className="flex items-center justify-between py-2"
-                  >
-                    <div>
-                      <p className="font-medium">{b.nombre}</p>
-                      <p className="text-xs text-neutral-500">
-                        {b.cantidad} corte{b.cantidad === 1 ? "" : "s"}
-                      </p>
+          {isAdmin ? (
+            <section className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+              <h2 className="mb-3 text-lg font-semibold">
+                Ganancias por barbero (este mes)
+              </h2>
+              {rankingBarberos.length === 0 ? (
+                <p className="text-sm text-neutral-500">
+                  Todavia no hay cortes registrados este mes.
+                </p>
+              ) : (
+                <div className="flex flex-col divide-y divide-neutral-100 dark:divide-neutral-800">
+                  {rankingBarberos.map((b) => (
+                    <div
+                      key={b.nombre}
+                      className="flex items-center justify-between py-2"
+                    >
+                      <div>
+                        <p className="font-medium">{b.nombre}</p>
+                        <p className="text-xs text-neutral-500">
+                          {b.cantidad} corte{b.cantidad === 1 ? "" : "s"}
+                        </p>
+                      </div>
+                      <p className="font-semibold">{formatMoney(b.total)}</p>
                     </div>
-                    <p className="font-semibold">{formatMoney(b.total)}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
+                  ))}
+                </div>
+              )}
+            </section>
+          ) : null}
 
           <section className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Ultimos cortes</h2>
+              <h2 className="text-lg font-semibold">
+                {isAdmin ? "Ultimos cortes" : "Tus ultimos cortes"}
+              </h2>
               <Link
                 href="/cortes"
                 className="text-sm font-medium text-neutral-600 hover:underline dark:text-neutral-300"

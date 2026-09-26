@@ -12,24 +12,54 @@ export type Database = {
   }
   public: {
     Tables: {
-      barbers: {
+      admins: {
         Row: {
           active: boolean
           created_at: string
           id: string
           name: string
+          pin_hash: string
         }
         Insert: {
           active?: boolean
           created_at?: string
           id?: string
           name: string
+          pin_hash: string
         }
         Update: {
           active?: boolean
           created_at?: string
           id?: string
           name?: string
+          pin_hash?: string
+        }
+        Relationships: []
+      }
+      barbers: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          name: string
+          phone: string | null
+          pin_hash: string | null
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name: string
+          phone?: string | null
+          pin_hash?: string | null
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name?: string
+          phone?: string | null
+          pin_hash?: string | null
         }
         Relationships: []
       }

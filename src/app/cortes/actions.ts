@@ -1,15 +1,17 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase/server";
+import { getSession, requireSession } from "@/lib/auth";
 
 export type ActionResult = { error?: string };
 
-export async function createCut(
-  _prevState: ActionResult,
-  formData: FormData
-): Promise<ActionResult> {
-  const barberId = String(formData.get("barber_id") || "");
+function parseCutFields(session: { role: string; id: string }, formData: FormData) {
+  const barberId =
+    session.role === "admin"
+      ? String(formData.get("barber_id") || "")
+      : session.id;
   const serviceId = String(formData.get("service_id") || "");
   const clientName = String(formData.get("client_name") || "").trim();
   const amountRaw = String(formData.get("amount") || "").replace(",", ".");
@@ -19,25 +21,38 @@ export async function createCut(
   const notes = String(formData.get("notes") || "").trim();
 
   if (!barberId) {
-    return { error: "Elegi el barbero que hizo el corte." };
+    return { error: "Elegi el barbero que hizo el corte." } as const;
   }
   if (!amountRaw || Number.isNaN(amount) || amount <= 0) {
-    return { error: "Ingresa un monto valido." };
+    return { error: "Ingresa un monto valido." } as const;
   }
   if (!cutDate) {
-    return { error: "Elegi la fecha del corte." };
+    return { error: "Elegi la fecha del corte." } as const;
   }
 
+  return {
+    values: {
+      barber_id: barberId,
+      service_id: serviceId || null,
+      client_name: clientName || null,
+      amount,
+      payment_method: paymentMethod,
+      cut_date: cutDate,
+      notes: notes || null,
+    },
+  } as const;
+}
+
+export async function createCut(
+  _prevState: ActionResult,
+  formData: FormData
+): Promise<ActionResult> {
+  const session = await requireSession();
+  const parsed = parseCutFields(session, formData);
+  if ("error" in parsed) return { error: parsed.error };
+
   const supabase = getSupabaseClient();
-  const { error } = await supabase.from("cuts").insert({
-    barber_id: barberId,
-    service_id: serviceId || null,
-    client_name: clientName || null,
-    amount,
-    payment_method: paymentMethod,
-    cut_date: cutDate,
-    notes: notes || null,
-  });
+  const { error } = await supabase.from("cuts").insert(parsed.values);
 
   if (error) {
     return { error: `No se pudo guardar el corte: ${error.message}` };
@@ -48,11 +63,69 @@ export async function createCut(
   return {};
 }
 
+export async function updateCut(
+  id: string,
+  _prevState: ActionResult,
+  formData: FormData
+): Promise<ActionResult> {
+  const session = await requireSession();
+
+  const supabase = getSupabaseClient();
+  const { data: existing } = await supabase
+    .from("cuts")
+    .select("id, barber_id")
+    .eq("id", id)
+    .single();
+
+  if (!existing) {
+    return { error: "El corte no existe." };
+  }
+
+  const canEdit =
+    session.role === "admin" ||
+    (session.role === "barbero" && existing.barber_id === session.id);
+  if (!canEdit) {
+    return { error: "No tenes permiso para editar este corte." };
+  }
+
+  const parsed = parseCutFields(session, formData);
+  if ("error" in parsed) return { error: parsed.error };
+
+  const { error } = await supabase
+    .from("cuts")
+    .update(parsed.values)
+    .eq("id", id);
+
+  if (error) {
+    return { error: `No se pudo actualizar el corte: ${error.message}` };
+  }
+
+  revalidatePath("/");
+  revalidatePath("/cortes");
+  return {};
+}
+
 export async function deleteCut(formData: FormData) {
+  const session = await getSession();
+  if (!session) redirect("/login");
+
   const id = String(formData.get("id") || "");
   if (!id) return;
 
   const supabase = getSupabaseClient();
+  const { data: existing } = await supabase
+    .from("cuts")
+    .select("barber_id")
+    .eq("id", id)
+    .single();
+
+  if (!existing) return;
+
+  const canDelete =
+    session.role === "admin" ||
+    (session.role === "barbero" && existing.barber_id === session.id);
+  if (!canDelete) return;
+
   await supabase.from("cuts").delete().eq("id", id);
 
   revalidatePath("/");

@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Mi Peluqueria - Administrador",
-  description: "Registro de cortes, barberos y ganancias de la peluqueria",
+  title: "Classic Barber Studio - Administrador",
+  description: "Registro de cortes, barberos y ganancias de Classic Barber Studio",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

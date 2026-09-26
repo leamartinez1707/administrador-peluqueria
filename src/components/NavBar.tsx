@@ -17,7 +17,7 @@ export function NavBar() {
     <header className="sticky top-0 z-10 border-b border-neutral-200 bg-white/90 backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/90">
       <div className="mx-auto flex max-w-4xl flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <span className="text-lg font-semibold tracking-tight">
-          💈 Mi Peluqueria
+          💈 Classic Barber Studio
         </span>
         <nav className="flex flex-wrap gap-1">
           {links.map((link) => {

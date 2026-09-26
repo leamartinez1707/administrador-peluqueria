@@ -1,8 +1,8 @@
-# Administrador de Peluqueria
+# Classic Barber Studio - Administrador
 
-MVP para reemplazar la planilla de Excel de la peluqueria. Permite anotar los
-cortes que se hacen, quien los hizo, y ver cuanto genero la peluqueria y cuanto
-genero cada barbero.
+MVP para reemplazar la planilla de Excel de Classic Barber Studio. Permite
+anotar los cortes que se hacen, quien los hizo, y ver cuanto genero la
+peluqueria y cuanto genero cada barbero.
 
 ## Funcionalidad
 

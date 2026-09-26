@@ -69,7 +69,7 @@ export default async function DashboardPage() {
         <div>
           <h1 className="text-2xl font-bold">Panel general</h1>
           <p className="text-sm text-neutral-500">
-            Resumen de la actividad de la peluqueria
+            Resumen de la actividad de Classic Barber Studio
           </p>
         </div>
         <Link

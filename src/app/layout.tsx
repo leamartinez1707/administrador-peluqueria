@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { NavBar } from "@/components/NavBar";
+import { ThemeProvider } from "@/components/ThemeProvider";
 import { getSession } from "@/lib/auth";
 
 const geistSans = Geist({
@@ -40,13 +41,16 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="es"
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-neutral-50 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
-        <NavBar session={session} />
-        <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6">
-          {children}
-        </main>
+        <ThemeProvider>
+          <NavBar session={session} />
+          <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6">
+            {children}
+          </main>
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -6,6 +6,11 @@ peluqueria y cuanto genero cada barbero.
 
 ## Funcionalidad
 
+- **Instalable en el celular**: se puede agregar a la pantalla de inicio
+  (Android/iOS) con icono propio y sin barra de direcciones.
+- **Tema claro/oscuro**: sigue el tema del sistema operativo por defecto, con
+  un boton (☀️/🌙) en la barra superior para forzarlo manualmente. La
+  preferencia manual se guarda en el navegador de cada persona.
 - **Login por PIN**: cada barbero y el administrador ingresan eligiendo su
   nombre y un PIN numerico (sin usuarios/contraseñas complejos).
 - **Roles diferenciados**:

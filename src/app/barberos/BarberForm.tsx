@@ -1,10 +1,18 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBarber, updateBarber, type ActionResult } from "./actions";
 
 const initialState: ActionResult = {};
+
+type Initial = {
+  name: string;
+  phone: string | null;
+  compensation_type: string;
+  commission_percentage: number;
+  daily_fee: number;
+};
 
 export function BarberForm({
   mode,
@@ -13,7 +21,7 @@ export function BarberForm({
 }: {
   mode: "create" | "edit";
   barberId?: string;
-  initial?: { name: string; phone: string | null };
+  initial?: Initial;
 }) {
   const router = useRouter();
   const boundAction =
@@ -31,6 +39,10 @@ export function BarberForm({
       return result;
     },
     initialState
+  );
+
+  const [compensationType, setCompensationType] = useState(
+    initial?.compensation_type ?? "percentage"
   );
 
   return (
@@ -78,6 +90,70 @@ export function BarberForm({
           className="input"
         />
       </label>
+
+      <div className="rounded-lg border border-neutral-200 p-3 dark:border-neutral-800">
+        <p className="mb-2 text-sm font-medium text-neutral-700 dark:text-neutral-200">
+          Como le paga la barberia
+        </p>
+        <div className="flex flex-col gap-3">
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="text-neutral-600 dark:text-neutral-300">
+              Modalidad
+            </span>
+            <select
+              name="compensation_type"
+              className="input"
+              value={compensationType}
+              onChange={(e) => setCompensationType(e.target.value)}
+            >
+              <option value="percentage">Comision (% para el barbero)</option>
+              <option value="fixed_daily">
+                Alquiler de silla (monto fijo por dia)
+              </option>
+            </select>
+          </label>
+
+          {compensationType === "percentage" ? (
+            <label className="flex flex-col gap-1.5 text-sm">
+              <span className="text-neutral-600 dark:text-neutral-300">
+                % que se queda el barbero
+              </span>
+              <input
+                type="number"
+                name="commission_percentage"
+                min="0"
+                max="100"
+                step="1"
+                required
+                defaultValue={initial?.commission_percentage ?? 50}
+                className="input"
+              />
+              <span className="text-xs text-neutral-400">
+                Ej: 50 = 50/50 con la barberia. 60 = el barbero se queda 60%.
+              </span>
+            </label>
+          ) : (
+            <label className="flex flex-col gap-1.5 text-sm">
+              <span className="text-neutral-600 dark:text-neutral-300">
+                Monto fijo por dia trabajado ($)
+              </span>
+              <input
+                type="number"
+                name="daily_fee"
+                min="0"
+                step="1"
+                required
+                defaultValue={initial?.daily_fee ?? 0}
+                className="input"
+              />
+              <span className="text-xs text-neutral-400">
+                Se descuenta por cada dia en que el barbero cargo al menos un
+                corte.
+              </span>
+            </label>
+          )}
+        </div>
+      </div>
 
       {state.error ? (
         <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">

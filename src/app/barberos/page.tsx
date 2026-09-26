@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getSupabaseClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { toggleBarberActive } from "./actions";
+import { compensationSummary } from "@/lib/compensation";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,9 @@ export default async function BarbersPage() {
   const supabase = getSupabaseClient();
   const { data: barbers, error } = await supabase
     .from("barbers")
-    .select("id, name, phone, active")
+    .select(
+      "id, name, phone, active, compensation_type, commission_percentage, daily_fee"
+    )
     .order("active", { ascending: false })
     .order("name");
 
@@ -58,9 +61,10 @@ export default async function BarbersPage() {
                       >
                         {b.name}
                       </p>
-                      {b.phone ? (
-                        <p className="text-xs text-neutral-500">{b.phone}</p>
-                      ) : null}
+                      <p className="text-xs text-neutral-500">
+                        {b.phone ? `${b.phone} · ` : ""}
+                        {compensationSummary(b)}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">

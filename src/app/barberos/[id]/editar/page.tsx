@@ -17,7 +17,9 @@ export default async function EditBarberPage({
   const supabase = getSupabaseClient();
   const { data: barber } = await supabase
     .from("barbers")
-    .select("id, name, phone")
+    .select(
+      "id, name, phone, compensation_type, commission_percentage, daily_fee"
+    )
     .eq("id", id)
     .single();
 
@@ -37,7 +39,13 @@ export default async function EditBarberPage({
       <BarberForm
         mode="edit"
         barberId={barber.id}
-        initial={{ name: barber.name, phone: barber.phone }}
+        initial={{
+          name: barber.name,
+          phone: barber.phone,
+          compensation_type: barber.compensation_type,
+          commission_percentage: Number(barber.commission_percentage),
+          daily_fee: Number(barber.daily_fee),
+        }}
       />
     </div>
   );

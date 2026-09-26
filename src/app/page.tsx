@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getSupabaseClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth";
 import { formatMoney, formatDateLabel } from "@/lib/format";
+import { calcBarberNet, type BarberCompensation } from "@/lib/compensation";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,12 @@ function monthStartISO(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
 }
 
+type PeriodAcc = { gross: number; days: Set<string> };
+
+function emptyPeriod(): PeriodAcc {
+  return { gross: 0, days: new Set() };
+}
+
 export default async function DashboardPage() {
   const session = await requireSession();
   const isAdmin = session.role === "admin";
@@ -26,7 +33,9 @@ export default async function DashboardPage() {
 
   let monthQuery = supabase
     .from("cuts")
-    .select("id, amount, cut_date, barber_id, barbers(name)")
+    .select(
+      "id, amount, cut_date, barber_id, barbers(name, compensation_type, commission_percentage, daily_fee)"
+    )
     .gte("cut_date", monthStart)
     .order("cut_date", { ascending: false })
     .order("created_at", { ascending: false });
@@ -47,32 +56,87 @@ export default async function DashboardPage() {
 
   const cuts = monthCuts ?? [];
 
-  const totalToday = cuts
-    .filter((c) => c.cut_date === today)
-    .reduce((sum, c) => sum + Number(c.amount), 0);
-  const cantidadHoy = cuts.filter((c) => c.cut_date === today).length;
+  type BarberAgg = {
+    nombre: string;
+    compensation: BarberCompensation;
+    today: PeriodAcc;
+    week: PeriodAcc;
+    month: PeriodAcc;
+    cantidadMes: number;
+  };
+  const porBarbero = new Map<string, BarberAgg>();
 
-  const totalSemana = cuts
-    .filter((c) => c.cut_date >= weekStart)
-    .reduce((sum, c) => sum + Number(c.amount), 0);
-
-  const totalMes = cuts.reduce((sum, c) => sum + Number(c.amount), 0);
-
-  const porBarbero = new Map<
-    string,
-    { nombre: string; total: number; cantidad: number }
-  >();
   for (const c of cuts) {
     const nombre = c.barbers?.name ?? "Sin asignar";
     const key = c.barber_id ?? nombre;
-    const prev = porBarbero.get(key) ?? { nombre, total: 0, cantidad: 0 };
-    prev.total += Number(c.amount);
-    prev.cantidad += 1;
+    const amount = Number(c.amount);
+    const prev =
+      porBarbero.get(key) ??
+      ({
+        nombre,
+        compensation: {
+          compensation_type: c.barbers?.compensation_type ?? "percentage",
+          commission_percentage: Number(c.barbers?.commission_percentage ?? 50),
+          daily_fee: Number(c.barbers?.daily_fee ?? 0),
+        },
+        today: emptyPeriod(),
+        week: emptyPeriod(),
+        month: emptyPeriod(),
+        cantidadMes: 0,
+      } satisfies BarberAgg);
+
+    prev.month.gross += amount;
+    prev.month.days.add(c.cut_date);
+    prev.cantidadMes += 1;
+    if (c.cut_date >= weekStart) {
+      prev.week.gross += amount;
+      prev.week.days.add(c.cut_date);
+    }
+    if (c.cut_date === today) {
+      prev.today.gross += amount;
+      prev.today.days.add(c.cut_date);
+    }
+
     porBarbero.set(key, prev);
   }
-  const rankingBarberos = Array.from(porBarbero.values()).sort(
-    (a, b) => b.total - a.total
+
+  const barberoRows = Array.from(porBarbero.values()).map((b) => ({
+    nombre: b.nombre,
+    cantidadMes: b.cantidadMes,
+    grossHoy: b.today.gross,
+    grossSemana: b.week.gross,
+    grossMes: b.month.gross,
+    netHoy: calcBarberNet(b.compensation, b.today.gross, b.today.days.size),
+    netSemana: calcBarberNet(
+      b.compensation,
+      b.week.gross,
+      b.week.days.size
+    ),
+    netMes: calcBarberNet(b.compensation, b.month.gross, b.month.days.size),
+  }));
+  barberoRows.sort((a, b) => b.grossMes - a.grossMes);
+
+  const totalToday = barberoRows.reduce((sum, b) => sum + b.grossHoy, 0);
+  const totalSemana = barberoRows.reduce((sum, b) => sum + b.grossSemana, 0);
+  const totalMes = barberoRows.reduce((sum, b) => sum + b.grossMes, 0);
+  const cantidadHoy = cuts.filter((c) => c.cut_date === today).length;
+
+  const netShopHoy = barberoRows.reduce(
+    (sum, b) => sum + (b.grossHoy - b.netHoy),
+    0
   );
+  const netShopSemana = barberoRows.reduce(
+    (sum, b) => sum + (b.grossSemana - b.netSemana),
+    0
+  );
+  const netShopMes = barberoRows.reduce(
+    (sum, b) => sum + (b.grossMes - b.netMes),
+    0
+  );
+
+  const miNetoHoy = barberoRows[0]?.netHoy ?? 0;
+  const miNetoSemana = barberoRows[0]?.netSemana ?? 0;
+  const miNetoMes = barberoRows[0]?.netMes ?? 0;
 
   return (
     <div className="flex flex-col gap-8">
@@ -104,25 +168,52 @@ export default async function DashboardPage() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <StatCard
               label="Hoy"
-              value={formatMoney(totalToday)}
-              hint={`${cantidadHoy} corte${cantidadHoy === 1 ? "" : "s"}`}
+              value={formatMoney(isAdmin ? totalToday : miNetoHoy)}
+              hint={
+                isAdmin
+                  ? `${cantidadHoy} corte${cantidadHoy === 1 ? "" : "s"} · neto local ${formatMoney(netShopHoy)}`
+                  : `generaste ${formatMoney(totalToday)}`
+              }
             />
-            <StatCard label="Ultimos 7 dias" value={formatMoney(totalSemana)} />
-            <StatCard label="Este mes" value={formatMoney(totalMes)} />
+            <StatCard
+              label="Ultimos 7 dias"
+              value={formatMoney(isAdmin ? totalSemana : miNetoSemana)}
+              hint={
+                isAdmin
+                  ? `neto local ${formatMoney(netShopSemana)}`
+                  : `generaste ${formatMoney(totalSemana)}`
+              }
+            />
+            <StatCard
+              label="Este mes"
+              value={formatMoney(isAdmin ? totalMes : miNetoMes)}
+              hint={
+                isAdmin
+                  ? `neto local ${formatMoney(netShopMes)}`
+                  : `generaste ${formatMoney(totalMes)}`
+              }
+            />
           </div>
+          {!isAdmin ? (
+            <p className="-mt-4 text-xs text-neutral-400">
+              El monto grande es lo que te queda neto (despues de tu comision
+              o el alquiler de silla). &quot;Generaste&quot; es el total bruto
+              de tus cortes.
+            </p>
+          ) : null}
 
           {isAdmin ? (
             <section className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
               <h2 className="mb-3 text-lg font-semibold">
                 Ganancias por barbero (este mes)
               </h2>
-              {rankingBarberos.length === 0 ? (
+              {barberoRows.length === 0 ? (
                 <p className="text-sm text-neutral-500">
                   Todavia no hay cortes registrados este mes.
                 </p>
               ) : (
                 <div className="flex flex-col divide-y divide-neutral-100 dark:divide-neutral-800">
-                  {rankingBarberos.map((b) => (
+                  {barberoRows.map((b) => (
                     <div
                       key={b.nombre}
                       className="flex items-center justify-between py-2"
@@ -130,10 +221,18 @@ export default async function DashboardPage() {
                       <div>
                         <p className="font-medium">{b.nombre}</p>
                         <p className="text-xs text-neutral-500">
-                          {b.cantidad} corte{b.cantidad === 1 ? "" : "s"}
+                          {b.cantidadMes} corte{b.cantidadMes === 1 ? "" : "s"}{" "}
+                          · genero {formatMoney(b.grossMes)}
                         </p>
                       </div>
-                      <p className="font-semibold">{formatMoney(b.total)}</p>
+                      <div className="text-right">
+                        <p className="font-semibold">
+                          {formatMoney(b.netMes)}
+                        </p>
+                        <p className="text-xs text-neutral-500">
+                          le queda a el/ella
+                        </p>
+                      </div>
                     </div>
                   ))}
                 </div>

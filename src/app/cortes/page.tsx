@@ -18,13 +18,13 @@ export default async function CutsPage({
   searchParams: SearchParams;
 }) {
   const session = await requireSession();
+  const isAdmin = session.role === "admin";
   const params = await searchParams;
   const supabase = getSupabaseClient();
 
-  const { data: barbers } = await supabase
-    .from("barbers")
-    .select("id, name")
-    .order("name");
+  const { data: barbers } = isAdmin
+    ? await supabase.from("barbers").select("id, name").order("name")
+    : { data: null };
 
   let query = supabase
     .from("cuts")
@@ -35,7 +35,12 @@ export default async function CutsPage({
     .order("created_at", { ascending: false })
     .limit(200);
 
-  if (params.barbero) query = query.eq("barber_id", params.barbero);
+  if (isAdmin) {
+    if (params.barbero) query = query.eq("barber_id", params.barbero);
+  } else {
+    // Un barbero solo puede ver sus propios cortes, nunca los de otros.
+    query = query.eq("barber_id", session.id);
+  }
   if (params.desde) query = query.gte("cut_date", params.desde);
   if (params.hasta) query = query.lte("cut_date", params.hasta);
 
@@ -46,7 +51,9 @@ export default async function CutsPage({
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl font-bold">Cortes</h1>
+        <h1 className="text-2xl font-bold">
+          {isAdmin ? "Cortes" : "Tus cortes"}
+        </h1>
         <Link
           href="/cortes/nuevo"
           className="inline-flex items-center justify-center rounded-lg bg-neutral-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-neutral-700 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
@@ -56,21 +63,23 @@ export default async function CutsPage({
       </div>
 
       <form className="flex flex-wrap items-end gap-3 rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium">Barbero</span>
-          <select
-            name="barbero"
-            defaultValue={params.barbero ?? ""}
-            className="input"
-          >
-            <option value="">Todos</option>
-            {(barbers ?? []).map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        {isAdmin ? (
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium">Barbero</span>
+            <select
+              name="barbero"
+              defaultValue={params.barbero ?? ""}
+              className="input"
+            >
+              <option value="">Todos</option>
+              {(barbers ?? []).map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium">Desde</span>
           <input

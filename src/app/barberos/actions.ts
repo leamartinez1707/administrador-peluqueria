@@ -7,6 +7,43 @@ import { hashPin, isValidPin } from "@/lib/pin";
 
 export type ActionResult = { error?: string };
 
+function parseCompensation(formData: FormData) {
+  const compensationType = String(
+    formData.get("compensation_type") || "percentage"
+  );
+
+  if (compensationType === "fixed_daily") {
+    const dailyFeeRaw = String(formData.get("daily_fee") || "").replace(
+      ",",
+      "."
+    );
+    const dailyFee = Number(dailyFeeRaw);
+    if (!dailyFeeRaw || Number.isNaN(dailyFee) || dailyFee < 0) {
+      return { error: "Ingresa un monto de silla valido." } as const;
+    }
+    return {
+      values: {
+        compensation_type: "fixed_daily" as const,
+        daily_fee: dailyFee,
+        commission_percentage: 0,
+      },
+    } as const;
+  }
+
+  const pctRaw = String(formData.get("commission_percentage") || "");
+  const pct = Number(pctRaw);
+  if (!pctRaw || Number.isNaN(pct) || pct < 0 || pct > 100) {
+    return { error: "El porcentaje debe estar entre 0 y 100." } as const;
+  }
+  return {
+    values: {
+      compensation_type: "percentage" as const,
+      commission_percentage: pct,
+      daily_fee: 0,
+    },
+  } as const;
+}
+
 export async function createBarber(
   _prevState: ActionResult,
   formData: FormData
@@ -24,11 +61,15 @@ export async function createBarber(
     return { error: "El PIN debe tener entre 4 y 6 numeros." };
   }
 
+  const compensation = parseCompensation(formData);
+  if ("error" in compensation) return { error: compensation.error };
+
   const supabase = getSupabaseClient();
   const { error } = await supabase.from("barbers").insert({
     name,
     phone: phone || null,
     pin_hash: await hashPin(pin),
+    ...compensation.values,
   });
 
   if (error) {
@@ -59,9 +100,20 @@ export async function updateBarber(
     return { error: "El PIN debe tener entre 4 y 6 numeros." };
   }
 
-  const update: { name: string; phone: string | null; pin_hash?: string } = {
+  const compensation = parseCompensation(formData);
+  if ("error" in compensation) return { error: compensation.error };
+
+  const update: {
+    name: string;
+    phone: string | null;
+    pin_hash?: string;
+    compensation_type: string;
+    commission_percentage: number;
+    daily_fee: number;
+  } = {
     name,
     phone: phone || null,
+    ...compensation.values,
   };
   if (newPin) {
     update.pin_hash = await hashPin(newPin);

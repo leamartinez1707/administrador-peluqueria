@@ -10,10 +10,16 @@ peluqueria y cuanto genero cada barbero.
   nombre y un PIN numerico (sin usuarios/contraseñas complejos).
 - **Roles diferenciados**:
   - **Barbero**: registra sus propios cortes y puede editar/borrar solo los
-    que el cargo. Ve su propio resumen de ganancias (hoy/semana/mes).
+    que el cargo. Ve unicamente su propio resumen de ganancias (hoy/semana/mes)
+    y su propio historial, nunca el de otros barberos.
   - **Administrador**: ademas de lo anterior, ve el panel completo de la
     barberia (totales generales y ranking de ganancias por barbero), y puede
     crear/editar barberos y servicios.
+- **Comision o alquiler de silla por barbero**: el admin configura, para cada
+  barbero, si cobra un % de comision (ej. 50/50, 60/40) o si paga un monto
+  fijo por dia trabajado (ej. $1500 de silla). El panel descuenta esto
+  automaticamente y muestra cuanto le queda neto a cada barbero (y cuanto es
+  la ganancia neta de la barberia) ademas del total bruto generado.
 - **Registrar cortes**: barbero (fijo si sos barbero, a elegir si sos admin),
   servicio (con precio sugerido) o monto libre, cliente, fecha y metodo de
   pago.
@@ -67,6 +73,11 @@ en cada Server Action).
 - `admins.pin_hash` / `barbers.pin_hash`: hash bcrypt del PIN de acceso. Un
   barbero sin `pin_hash` todavia no puede loguearse hasta que un admin le
   asigne uno desde **Barberos → Editar**.
+- `barbers.compensation_type` (`percentage` o `fixed_daily`),
+  `commission_percentage` y `daily_fee`: definen como se le paga a cada
+  barbero. Un "dia trabajado" (para `fixed_daily`) se calcula como un dia en
+  el que el barbero cargo al menos un corte; si un dia no carga nada, ese dia
+  no se le cobra alquiler de silla (no hay control de asistencia aparte).
 
 ## Roles y permisos (resumen tecnico)
 
